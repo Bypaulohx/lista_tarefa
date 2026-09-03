@@ -15,7 +15,6 @@ class MainApp extends StatelessWidget {
       ),
       title: 'Lista de Tarefas',
       debugShowCheckedModeBanner: false,
-
       home: const HomePage(),
     );
   }
@@ -29,15 +28,63 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+
+  final TextEditingController _controller = TextEditingController();
+
+  final List<String> tarefas = [];
+
+  void adicionarTarefa() {
+    final tarefa = _controller.text.trim();
+
+    if (tarefa.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Atenção'),
+            content: const Text('Não é possível adicionar uma tarefa vazia.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('OK')
+              ),
+            ],
+          );
+        },
+      );
+
+      return;
+    }
+
+    setState(() {
+      tarefas.add(tarefa);
+    });
+    
+      _controller.clear();
+  }
+
+  void removerTarefa(int index) {
+    setState(() {
+      tarefas.removeAt(index);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    //Método responsável por construir a interface do usuário da página inicial.
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Lista de Tarefas',
           style: TextStyle(
-            color: const Color.fromARGB(255, 0, 0, 0),
+            color: Colors.black,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -53,6 +100,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _controller,
                     decoration: InputDecoration(
                       hintText: 'Digite uma tarefa',
                       border: OutlineInputBorder(
@@ -61,27 +109,29 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 8.0),
+
                 ElevatedButton(
-                  onPressed: () {
-                    // Lógica para adicionar a tarefa
-                  },
+                  onPressed: adicionarTarefa,
                   child: const Text('Adicionar'),
                 ),
               ],
             ),
-            SizedBox(height: 16.0),
+
+            const SizedBox(height: 16.0),
+
             Expanded(
               child: ListView.builder(
-                itemCount: 10, // Substitua pelo número de tarefas
+                itemCount: tarefas.length,
                 itemBuilder: (context, index) {
                   return Card(
                     child: ListTile(
-                      title: Text('Tarefa ${index + 1}'),
+                      title: Text(tarefas[index]),
                       trailing: IconButton(
-                        icon: Icon(Icons.delete),
+                        icon: const Icon(Icons.delete),
                         onPressed: () {
-                          // Lógica para remover a tarefa
+                          removerTarefa(index);
                         },
                       ),
                     ),
