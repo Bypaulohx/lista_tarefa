@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite_common_ffi/sqflite_common_ffi.dart';
+import 'database/database_helper.dart';
+import 'segunda_tela.dart';
+import 'dart:io';
 
 void main() {
+  if (Platform.isWindows) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
   runApp(const MainApp());
 }
 
@@ -11,10 +19,16 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color.fromARGB(255, 28, 191, 197),
+        scaffoldBackgroundColor: const Color.fromARGB(
+          255,
+          234,
+          196,
+          196,
+        ), // redAccent
       ),
       title: 'Lista de Tarefas',
       debugShowCheckedModeBanner: false,
+
       home: const HomePage(),
     );
   }
@@ -28,138 +42,61 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController tarefaController =
+      TextEditingController(); // Controlador para o campo de texto
 
-  final List<String> tarefas = [];
+  // List<String> tarefas = []; // Lista para armazenar as tarefas
 
-  int? tarefaSelecionada;
-
-  void adicionarTarefa() {
-    final tarefa = _controller.text.trim();
-
-    if (tarefa.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Atenção'),
-            content: const Text('Não é possível adicionar uma tarefa vazia.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-
-      return;
-    }
-
-    setState(() {
-      tarefas.add(tarefa);
-    });
-
-    _controller.clear();
-  }
-
-  void removerTarefa(int index) {
-    setState(() {
-      tarefas.removeAt(index);
-
-      if (tarefaSelecionada == index) {
-        tarefaSelecionada = null;
-      } else if (tarefaSelecionada != null && index < tarefaSelecionada!) {
-        tarefaSelecionada = tarefaSelecionada! - 1;
-      }
-    });
-  }
-
-  void editarTarefa(int index) {
-    final TextEditingController editarController = TextEditingController(
-      text: tarefas[index],
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Editar tarefa'),
-          content: TextField(
-            controller: editarController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Digite a nova tarefa',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final novaTarefa = editarController.text.trim();
-
-                if (novaTarefa.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  tarefas[index] = novaTarefa;
-                });
-
-                Navigator.of(context).pop();
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void abrirTarefa() {
-    if (tarefaSelecionada == null) {
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            DetalhesTarefa(tarefa: tarefas[tarefaSelecionada!]),
-      ),
-    );
-  }
-
-  void abrirSobre() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SobrePage()),
-    );
-  }
+  List<Map<String, dynamic>> tarefas = [];
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    carregarTarefas();
+  }
+
+  Future<void> carregarTarefas() async {
+    final dados = await DatabaseHelper.instance.listarTarefas();
+    setState(() {
+      tarefas = dados;
+    });
+  }
+
+  int? indiceEdicao;
+
+  Future<void> adicionarTarefa() async {
+    if (tarefaController.text.isEmpty) {
+      //SnackBar para informar que a tarefa não pode ser vazia
+      return; // Não adiciona tarefas vazias
+    }
+
+    await DatabaseHelper.instance.inserirTarefa(tarefaController.text);
+    tarefaController.clear(); // Limpa o campo de texto após adicionar a tarefa
+
+    carregarTarefas();
+  }
+
+  // void editarTarefa(int index) {
+  //   setState(() {
+  //     tarefaController.text = tarefas[index];
+  //     indiceEdicao = index;
+  //   });
+  // }
+
+  Future<void> removerTarefa(int index) async {
+    await DatabaseHelper.instance.removerTarefa(index);
+    carregarTarefas();
   }
 
   @override
   Widget build(BuildContext context) {
+    //Método responsável por construir a interface do usuário da página inicial
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Lista de Tarefas',
           style: TextStyle(
-            color: Colors.black,
+            color: const Color.fromARGB(255, 15, 14, 14),
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -175,7 +112,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _controller,
+                    controller: tarefaController,
                     decoration: InputDecoration(
                       hintText: 'Digite uma tarefa',
                       border: OutlineInputBorder(
@@ -184,205 +121,64 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-
-                const SizedBox(width: 8.0),
-
+                SizedBox(width: 8.0),
                 ElevatedButton(
-                  onPressed: adicionarTarefa,
-                  child: const Text('Adicionar'),
+                  onPressed: () {
+                    // Lógica para adicionar a tarefa
+                    adicionarTarefa();
+                  },
+                  child: Text(indiceEdicao == null ? 'Adicionar' : 'Atualizar'),
                 ),
               ],
             ),
-
-            const SizedBox(height: 16.0),
-
+            SizedBox(height: 16.0),
             Expanded(
-              child: tarefas.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Nenhuma tarefa adicionada.',
-                        style: TextStyle(fontSize: 18, color: Colors.black54),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: tarefas.length,
-                      itemBuilder: (context, index) {
-                        final bool selecionada = tarefaSelecionada == index;
-
-                        return Card(
-                          color: selecionada
-                              ? const Color.fromARGB(
-                                  66,
-                                  255,
-                                  255,
-                                  255,
-                                ).withOpacity(0.8)
-                              : Colors.white,
-                          child: ListTile(
-                            onTap: () {
-                              setState(() {
-                                if (tarefaSelecionada == index) {
-                                  tarefaSelecionada = null;
-                                } else {
-                                  tarefaSelecionada = index;
-                                }
-                              });
+              child: ListView.builder(
+                itemCount: tarefas.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    child: ListTile(
+                      title: Text((tarefas[index]['descricao'])),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () {
+                              // Lógica para remover a tarefa
+                              removerTarefa(tarefas[index]['id']);
                             },
-
-                            title: Text(
-                              tarefas[index],
-                              style: TextStyle(
-                                fontWeight: selecionada
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Editar
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () {
-                                    editarTarefa(index);
-                                  },
-                                ),
-
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  onPressed: () {
-                                    removerTarefa(index);
-                                  },
-                                ),
-                              ],
-                            ),
                           ),
-                        );
-                      },
+                          IconButton(
+                            icon: Icon(Icons.edit),
+                            onPressed: () {
+                              // editarTarefa(index);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-            ),
-
-            if (tarefaSelecionada != null) ...[
-              const SizedBox(height: 8),
-
-              Center(
-                child: ElevatedButton(
-                  onPressed: abrirTarefa,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 20,
-                    ),
-                  ),
-                  child: const Text('Abrir', style: TextStyle(fontSize: 16)),
-                ),
-              ),
-
-              const SizedBox(height: 300),
-            ],
-
-            Center(
-              child: TextButton(
-                onPressed: abrirSobre,
-                child: const Text(
-                  'Sobre',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class SobrePage extends StatelessWidget {
-  const SobrePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Sobre',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 20),
-
-              const SizedBox(height: 30),
-
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('Voltar'),
-              ),
-            ],
+      bottomNavigationBar: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SegundaTela()),
+                );
+              },
+              child: const Text('Sobre'),
+            ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class DetalhesTarefa extends StatelessWidget {
-  final String tarefa;
-
-  const DetalhesTarefa({super.key, required this.tarefa});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Tarefa selecionada',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                tarefa,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('Voltar'),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
